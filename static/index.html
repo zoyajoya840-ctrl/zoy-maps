@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zoy Maps v2.0 — Google Maps-Grade SaaS Platform</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/sdk/zoy-maps.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --panel: #111827;
+      --panel-border: #1f2937;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    header {
+      height: 58px; background: var(--panel); border-bottom: 1px solid var(--panel-border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+    .brand-badge { background: linear-gradient(135deg, #3b82f6, #10b981); padding: 4px 9px; border-radius: 6px; font-size: 12px; font-weight: 800; }
+    .nav-tabs { display: flex; gap: 8px; }
+    .tab-btn {
+      background: transparent; border: 1px solid transparent; color: var(--muted);
+      padding: 7px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s;
+    }
+    .tab-btn.active, .tab-btn:hover { background: #1f2937; color: #fff; border-color: #374151; }
+    .workspace { display: flex; flex: 1; height: calc(100vh - 58px); }
+    .sidebar {
+      width: 400px; background: var(--panel); border-right: 1px solid var(--panel-border);
+      padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+    }
+    .map-area { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; z-index: 1; }
+    .card {
+      background: #0f1623; border: 1px solid var(--panel-border); border-radius: 10px; padding: 14px;
+    }
+    .card h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    label { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+    input, select {
+      width: 100%; background: #1f2937; border: 1px solid #374151; color: #fff;
+      padding: 8px 10px; border-radius: 7px; font-size: 13px; margin-bottom: 9px; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    button.primary {
+      width: 100%; background: var(--accent); color: #fff; border: none; padding: 9px;
+      border-radius: 7px; font-weight: 600; font-size: 13px; cursor: pointer; transition: 0.2s;
+    }
+    button.primary:hover { background: var(--accent-hover); }
+    button.secondary {
+      width: 100%; background: #1f2937; color: #f3f4f6; border: 1px solid #374151; padding: 8px;
+      border-radius: 7px; font-weight: 600; font-size: 12.5px; cursor: pointer;
+    }
+    button.secondary:hover { border-color: var(--emerald); color: #34d399; }
+    .result-item {
+      padding: 9px; border-radius: 7px; background: #161f30; border: 1px solid #243047;
+      margin-top: 8px; cursor: pointer; font-size: 12.5px;
+    }
+    .result-item:hover { border-color: var(--accent); }
+    .pill { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; background: #1e3a8a; color: #93c5fd; }
+    .console-view { display: none; flex: 1; padding: 26px; overflow-y: auto; gap: 20px; flex-direction: column; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .stat-val { font-size: 26px; font-weight: 800; color: #fff; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--panel-border); }
+    th { color: var(--muted); font-weight: 600; }
+    code { background: #1f2937; padding: 3px 6px; border-radius: 5px; font-family: monospace; color: #34d399; font-size: 12px; }
+    .floating-controls {
+      position: absolute; top: 14px; right: 14px; z-index: 999; background: var(--panel);
+      border: 1px solid var(--panel-border); padding: 6px; border-radius: 8px; display: flex; gap: 6px;
+    }
+    .style-chip {
+      background: #1f2937; color: #d1d5db; border: none; padding: 6px 10px; border-radius: 6px;
+      font-size: 12px; cursor: pointer; font-weight: 600;
+    }
+    .style-chip.active { background: var(--accent); color: #fff; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="brand-badge">ZOY v2</span>
+      <span>Zoy Maps Enterprise SaaS</span>
+    </div>
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchView('playground', this)">Live Map, Traffic & Routing</button>
+      <button class="tab-btn" onclick="switchView('console', this)">API Keys, Billing & Console</button>
+      <a href="/docs" target="_blank" class="tab-btn" style="text-decoration:none;">Swagger API Docs ↗</a>
+    </div>
+  </header>
+
+  <div id="playground-view" class="workspace">
+    <div class="sidebar">
+      <div class="card">
+        <h3>Active SaaS API Key</h3>
+        <input type="text" id="activeApiKey" value="zoy_live_demo_public_sandbox_2026" onchange="reinitSdk()" />
+      </div>
+
+      <div class="card">
+        <h3>1. Place & Plus-Code Search</h3>
+        <input type="text" id="searchQuery" placeholder="Search Nawalgarh, Jaipur, ZOY-..." value="Nawalgarh" />
+        <button class="primary" onclick="runSearch()">Search Zoy Maps</button>
+        <div id="searchResults"></div>
+      </div>
+
+      <div class="card">
+        <h3>2. Traffic-Aware Navigation</h3>
+        <label>Origin (Lat, Lng)</label>
+        <input type="text" id="routeOrigin" value="26.8358,75.8655" />
+        <label>Destination (Lat, Lng)</label>
+        <input type="text" id="routeDest" value="26.9239,75.8267" />
+        <label>Mode</label>
+        <select id="routeMode">
+          <option value="driving">Driving (Live Traffic ETA)</option>
+          <option value="cycling">Cycling / Two-Wheeler</option>
+          <option value="walking">Walking</option>
+        </select>
+        <button class="primary" onclick="runDirections()">Get Route & Live ETA</button>
+        <div id="routeSummary" style="margin-top:8px; font-size:13px;"></div>
+      </div>
+
+      <div class="card">
+        <h3>3. Live Traffic & Fleet Telemetry <span class="pill" style="background:#064e3b;color:#34d399;">LIVE WS</span></h3>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:8px;">Simulate MILGI / Fleet GPS pings to update road congestion colors & route ETAs in real time.</div>
+        <button class="secondary" onclick="simulateFleetPing()">Simulate Live Vehicle Ping (Jaipur)</button>
+        <div id="trafficStatusBox" style="margin-top:8px; font-size:12px; color:#93c5fd;"></div>
+      </div>
+
+      <div class="card">
+        <h3>4. Add Missing Rural / Local Place</h3>
+        <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px;">Click anywhere on the map first to auto-fill coordinates, then publish to Zoy Maps global search.</div>
+        <input type="text" id="newPlaceName" placeholder="Place Name (e.g. Gugara Bus Stand)" />
+        <input type="text" id="newPlaceAddress" placeholder="Full Address / Village / Ward" />
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <input type="text" id="newPlaceLat" placeholder="Lat (click map)" />
+          <input type="text" id="newPlaceLng" placeholder="Lng (click map)" />
+        </div>
+        <button class="primary" style="background:var(--emerald);" onclick="publishMissingPlace()">+ Publish Missing Place</button>
+        <div id="contributeMsg" style="margin-top:6px; font-size:12px;"></div>
+      </div>
+    </div>
+
+    <div class="map-area">
+      <div class="floating-controls">
+        <button class="style-chip active" onclick="setMapStyle('streets', this)">Streets</button>
+        <button class="style-chip" onclick="setMapStyle('dark', this)">Dark</button>
+        <button class="style-chip" onclick="setMapStyle('satellite', this)">Satellite</button>
+        <button class="style-chip active" id="trafficToggleBtn" onclick="toggleTrafficOverlay(this)">Traffic Layer: ON</button>
+      </div>
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <div id="console-view" class="console-view">
+    <div class="grid-4">
+      <div class="card">
+        <h3>Total API Keys</h3>
+        <div class="stat-val" id="statTotalKeys">0</div>
+      </div>
+      <div class="card">
+        <h3>Total Metered Calls</h3>
+        <div class="stat-val" id="statTotalCalls" style="color:var(--accent);">0</div>
+      </div>
+      <div class="card">
+        <h3>Verified Custom POIs</h3>
+        <div class="stat-val" id="statCustomPois" style="color:var(--emerald);">0</div>
+      </div>
+      <div class="card">
+        <h3>SaaS Billing Volume</h3>
+        <div class="stat-val" id="statRevenue" style="color:var(--amber);">₹0</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Issue New SaaS Client API Key</h3>
+      <div style="display:grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap:10px; align-items:end;">
+        <div>
+          <label>Client / App Name</label>
+          <input type="text" id="newProjectName" placeholder="e.g. MILGI Passenger App" style="margin:0;" />
+        </div>
+        <div>
+          <label>Developer Email</label>
+          <input type="email" id="newOwnerEmail" placeholder="dev@startup.in" style="margin:0;" />
+        </div>
+        <div>
+          <label>Plan Tier</label>
+          <select id="newPlan" style="margin:0;">
+            <option value="free">Free — ₹0/mo (30 RPM)</option>
+            <option value="pro" selected>Pro — ₹999/mo (300 RPM)</option>
+            <option value="enterprise">Enterprise — ₹4,999/mo (2000 RPM)</option>
+          </select>
+        </div>
+        <button class="primary" onclick="createNewKey()">+ Issue API Key</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Active SaaS API Keys & Instant Plan Upgrade</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>API Key</th>
+            <th>Plan & Rate Limit</th>
+            <th>Usage / Quota</th>
+            <th>Status</th>
+            <th>Billing / Actions</th>
+          </tr>
+        </thead>
+        <tbody id="keysTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>SDK Integration (Web & React Native / Expo)</h3>
+      <pre style="background:#090d16; padding:12px; border-radius:8px; overflow-x:auto; font-size:12px; color:#a5b4fc;">// Web JS SDK: &lt;script src="http://localhost:8000/sdk/zoy-maps.js"&gt;&lt;/script&gt;
+// React Native / Expo: import { ZoyMapsMobile } from './sdk/zoy-maps-rn';
+
+const zoy = new ZoyMaps.Client({ apiKey: "YOUR_ZOY_LIVE_API_KEY" });
+const route = await zoy.getDirections("26.8358,75.8655", "26.9239,75.8267", "driving");
+console.log("Traffic-Adjusted ETA:", route.routes[0].duration_in_traffic.text);</pre>
+    </div>
+  </div>
+
+  <script>
+    let zoyClient = new ZoyMaps.Client({ apiKey: document.getElementById("activeApiKey").value });
+    let currentStyle = "streets";
+    let showTraffic = true;
+    let tileLayer = null;
+    let routeLayer = null;
+    let markerLayer = L.layerGroup();
+    let trafficLayer = L.layerGroup();
+
+    const map = L.map("map").setView([26.885, 75.835], 12);
+    markerLayer.addTo(map);
+    trafficLayer.addTo(map);
+
+    function loadTiles() {
+      if (tileLayer) map.removeLayer(tileLayer);
+      tileLayer = L.tileLayer(zoyClient.getTileUrlTemplate(currentStyle), {
+        maxZoom: 19,
+        attribution: "© Zoy Maps v2.0 | Zoy Tech Solutions"
+      }).addTo(map);
+    }
+
+    function reinitSdk() {
+      zoyClient = new ZoyMaps.Client({ apiKey: document.getElementById("activeApiKey").value.trim() });
+      loadTiles();
+      refreshTrafficLayer();
+    }
+
+    function setMapStyle(style, btn) {
+      currentStyle = style;
+      document.querySelectorAll(".floating-controls .style-chip").forEach((b, i) => {
+        if (i < 3) b.classList.remove("active");
+      });
+      btn.classList.add("active");
+      loadTiles();
+    }
+
+    function toggleTrafficOverlay(btn) {
+      showTraffic = !showTraffic;
+      btn.innerText = `Traffic Layer: ${showTraffic ? "ON" : "OFF"}`;
+      btn.classList.toggle("active", showTraffic);
+      if (showTraffic) refreshTrafficLayer();
+      else trafficLayer.clearLayers();
+    }
+
+    async function refreshTrafficLayer() {
+      if (!showTraffic) return;
+      try {
+        const snap = await zoyClient.getLiveTraffic();
+        trafficLayer.clearLayers();
+        snap.traffic_zones.forEach(z => {
+          L.circle([z.lat, z.lng], {
+            radius: 380,
+            color: z.color,
+            fillColor: z.color,
+            fillOpacity: 0.28,
+            weight: 2
+          }).addTo(trafficLayer).bindPopup(`<b>Live Traffic Zone</b><br>${z.label} (${z.avg_speed_kmh} km/h)`);
+        });
+        snap.vehicles.forEach(v => {
+          L.circleMarker([v.lat, v.lng], {
+            radius: 7,
+            color: "#ffffff",
+            fillColor: "#3b82f6",
+            fillOpacity: 1,
+            weight: 2
+          }).addTo(trafficLayer).bindPopup(`<b>${v.vehicle_id}</b> (${v.vehicle_type})<br>Speed: ${v.speed_kmh} km/h`);
+        });
+        document.getElementById("trafficStatusBox").innerText =
+          `Active Fleet Vehicles: ${snap.active_vehicles_count} | Monitored Traffic Zones: ${snap.traffic_zones_count}`;
+      } catch (e) {}
+    }
+
+    async function simulateFleetPing() {
+      const lat = 26.84 + Math.random() * 0.08;
+      const lng = 75.81 + Math.random() * 0.06;
+      const speed = Math.round(8 + Math.random() * 38);
+      const vid = `MILGI-AUTO-${Math.floor(10 + Math.random() * 89)}`;
+      await zoyClient.pingTelemetry({
+        vehicle_id: vid,
+        vehicle_type: "auto",
+        lat,
+        lng,
+        speed_kmh: speed,
+        heading: 45
+      });
+      refreshTrafficLayer();
+    }
+
+    async function runSearch() {
+      const q = document.getElementById("searchQuery").value;
+      const box = document.getElementById("searchResults");
+      box.innerHTML = "<div style='font-size:12px;color:#9ca3af;margin-top:6px;'>Searching Zoy Maps...</div>";
+      try {
+        const data = await zoyClient.geocode(q);
+        markerLayer.clearLayers();
+        if (!data.results.length) {
+          box.innerHTML = "<div style='font-size:12px;color:#f87171;margin-top:6px;'>No locations found.</div>";
+          return;
+        }
+        box.innerHTML = "";
+        data.results.forEach((item, i) => {
+          const m = L.marker([item.location.lat, item.location.lng]).addTo(markerLayer)
+            .bindPopup(`<b>${item.name}</b><br><span style="color:#2563eb;font-weight:700;">${item.plus_code || ""}</span><br>${item.formatted_address}`);
+          if (i === 0) {
+            map.setView([item.location.lat, item.location.lng], 14);
+            m.openPopup();
+          }
+          const div = document.createElement("div");
+          div.className = "result-item";
+          div.innerHTML = `<strong>${item.name}</strong> <span class="pill">${item.plus_code || item.category}</span><div style="color:#9ca3af;margin-top:3px;">${item.formatted_address}</div>`;
+          div.onclick = () => {
+            map.setView([item.location.lat, item.location.lng], 15);
+            m.openPopup();
+          };
+          box.appendChild(div);
+        });
+      } catch (err) {
+        box.innerHTML = `<div style='font-size:12px;color:#f87171;margin-top:6px;'>${err.message}</div>`;
+      }
+    }
+
+    async function runDirections() {
+      const orig = document.getElementById("routeOrigin").value;
+      const dest = document.getElementById("routeDest").value;
+      const mode = document.getElementById("routeMode").value;
+      const summaryBox = document.getElementById("routeSummary");
+      summaryBox.innerHTML = "Calculating traffic-aware route...";
+      try {
+        const data = await zoyClient.getDirections(orig, dest, mode);
+        const primary = data.routes[0];
+        if (routeLayer) map.removeLayer(routeLayer);
+        const routeColor = primary.traffic?.traffic_condition === "heavy" ? "#ef4444" : "#3b82f6";
+        routeLayer = L.geoJSON(primary.geometry, {
+          style: { color: routeColor, weight: 5, opacity: 0.9 }
+        }).addTo(map);
+        map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
+
+        let stepsHtml = primary.steps.slice(0, 5).map(s => `<li style="margin-top:3px;color:#d1d5db;">${s.instruction} (${s.distance_meters}m)</li>`).join("");
+        summaryBox.innerHTML = `
+          <div class="result-item" style="cursor:default;">
+            <div style="font-size:14px;font-weight:700;color:#34d399;">
+              ${primary.duration_in_traffic.text} (${primary.distance.text})
+            </div>
+            <div style="font-size:11px;color:#9ca3af;">
+              Base ETA: ${primary.duration.text} • Traffic: <b>${primary.traffic.traffic_condition.toUpperCase()}</b>
+            </div>
+            <ol style="padding-left:16px;margin-top:6px;font-size:11.5px;">${stepsHtml}</ol>
+          </div>
+        `;
+      } catch (err) {
+        summaryBox.innerHTML = `<span style="color:#f87171;">${err.message}</span>`;
+      }
+    }
+
+    async function publishMissingPlace() {
+      const name = document.getElementById("newPlaceName").value.trim();
+      const address = document.getElementById("newPlaceAddress").value.trim();
+      const lat = parseFloat(document.getElementById("newPlaceLat").value);
+      const lng = parseFloat(document.getElementById("newPlaceLng").value);
+      const msg = document.getElementById("contributeMsg");
+      if (!name || !address || isNaN(lat) || isNaN(lng)) {
+        msg.innerHTML = "<span style='color:#f87171;'>Click map for coordinates and fill name & address.</span>";
+        return;
+      }
+      try {
+        const res = await zoyClient.contributePlace({ name, address, lat, lng, category: "community_pin" });
+        msg.innerHTML = `<span style='color:#34d399;'>Published! Plus Code: <b>${res.place.plus_code}</b></span>`;
+        L.marker([lat, lng]).addTo(markerLayer).bindPopup(`<b>${name}</b><br>${res.place.plus_code}`).openPopup();
+      } catch (err) {
+        msg.innerHTML = `<span style='color:#f87171;'>${err.message}</span>`;
+      }
+    }
+
+    map.on("click", async (e) => {
+      const { lat, lng } = e.latlng;
+      document.getElementById("newPlaceLat").value = lat.toFixed(6);
+      document.getElementById("newPlaceLng").value = lng.toFixed(6);
+      try {
+        const res = await zoyClient.reverseGeocode(lat, lng);
+        L.popup().setLatLng([lat, lng]).setContent(
+          `<b>Zoy Maps Pin</b><br><span style="color:#2563eb;font-weight:700;">${res.result.plus_code}</span><br>${res.result.formatted_address}`
+        ).openOn(map);
+      } catch (err) {}
+    });
+
+    function switchView(view, btn) {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (view === "playground") {
+        document.getElementById("playground-view").style.display = "flex";
+        document.getElementById("console-view").style.display = "none";
+        setTimeout(() => map.invalidateSize(), 100);
+      } else {
+        document.getElementById("playground-view").style.display = "none";
+        document.getElementById("console-view").style.display = "flex";
+        refreshConsole();
+      }
+    }
+
+    async function refreshConsole() {
+      const [keysRes, statsRes] = await Promise.all([
+        fetch("/v1/console/keys").then(r => r.json()),
+        fetch("/v1/console/analytics").then(r => r.json())
+      ]);
+      document.getElementById("statTotalKeys").innerText = statsRes.total_keys;
+      document.getElementById("statTotalCalls").innerText = statsRes.total_api_calls;
+      document.getElementById("statCustomPois").innerText = statsRes.proprietary_places_count;
+      document.getElementById("statRevenue").innerText = `₹${statsRes.total_revenue_inr.toLocaleString()}`;
+
+      const tbody = document.getElementById("keysTableBody");
+      tbody.innerHTML = "";
+      keysRes.forEach(k => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><b>${k.project_name}</b><br><span style="font-size:11px;color:#9ca3af;">${k.owner_email}</span></td>
+          <td><code>${k.key}</code></td>
+          <td><span class="pill">${k.plan.toUpperCase()} (${k.rate_limit_per_min} RPM)</span></td>
+          <td>${k.requests_used.toLocaleString()} / ${k.monthly_quota.toLocaleString()}</td>
+          <td>${k.is_active ? "<span style='color:#10b981;'>Active</span>" : "<span style='color:#ef4444;'>Revoked</span>"}</td>
+          <td style="display:flex;gap:6px;">
+            ${k.plan !== "enterprise" ? `<button class="style-chip" style="background:#065f46;color:#6ee7b7;" onclick="upgradePlan('${k.key}', 'enterprise')">Upgrade Enterprise</button>` : ""}
+            ${k.is_active ? `<button class="style-chip" onclick="revokeKey(${k.id})">Revoke</button>` : "-"}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function createNewKey() {
+      const project_name = document.getElementById("newProjectName").value.trim();
+      const owner_email = document.getElementById("newOwnerEmail").value.trim();
+      const plan = document.getElementById("newPlan").value;
+      if (!project_name || !owner_email) return alert("Enter project name and email.");
+      await fetch("/v1/console/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_name, owner_email, plan })
+      });
+      document.getElementById("newProjectName").value = "";
+      document.getElementById("newOwnerEmail").value = "";
+      refreshConsole();
+    }
+
+    async function upgradePlan(api_key, target_plan) {
+      await fetch("/v1/billing/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key, target_plan, payment_reference: "rzp_console_upgrade" })
+      });
+      refreshConsole();
+    }
+
+    async function revokeKey(id) {
+      await fetch(`/v1/console/keys/${id}`, { method: "DELETE" });
+      refreshConsole();
+    }
+
+    loadTiles();
+    refreshTrafficLayer();
+    setInterval(refreshTrafficLayer, 10000);
+  </script>
+</body>
+</html>
